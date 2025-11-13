@@ -1,0 +1,58 @@
+[project]
+name = "cococo"
+version = "0.1.0"
+description = "Lattice surgery compilation techniques based on color codes"
+authors = [
+    { name = "Laura S. Herzog", email = "laura.herzog@tum.de" }
+]
+
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "qiskit",
+    "networkx",
+    "mqt.qecc",
+]
+
+#[tool.hatch.envs.dev]
+# This defines a dev environment called 'dev'
+#dependencies = [
+#    "black>=24.0",
+#    "isort>=6.0",
+#    "flake8>=6.0",
+#    "mypy>=1.5",
+#    "pre-commit>=3.3"
+#]
+
+#[tool.hatch.build.targets.wheel]
+#packages = ["cococo"]
+#include = ["cococo"]
+
+#[tool.hatch.build]
+#sources = ["src"]
+
+#[build-system]
+#requires = [
+#  "hatchling>=1.27.0",
+#  "hatch-vcs>=0.4.0"
+#]
+#build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 120
+preview = true
+unsafe-fixes = true
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "W503"]
+
+
+
+#####alternative stuff
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

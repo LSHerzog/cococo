@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: cococo
+Version: 0.1.0
+Summary: Lattice surgery compilation techniques based on color codes
+Author-email: "Laura S. Herzog" <laura.herzog@tum.de>
+Requires-Python: >=3.11
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: qiskit
+Requires-Dist: networkx
+Requires-Dist: mqt.qecc
