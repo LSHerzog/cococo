@@ -53,15 +53,16 @@ def random_initial_state(n_qubits: int) -> stim.Circuit:
     return c
 
 
-def check_order_dyn_gates_st(terminal_pairs, vdp_layers) -> bool:
+def check_order_dyn_gates_st(terminal_pairs, vdp_layers, layout=None) -> bool:
     """only works for cnot circuits and the standard scheme, i.e. quilt.find_total_vdp_layers_dyn"""
 
     flattened_pairs = [item for pair in terminal_pairs for item in pair]
     data_qubit_locs = list(set(flattened_pairs))
     n_qubits = len(data_qubit_locs)
-    layout = {
-        i: j for i, j in enumerate(data_qubit_locs)
-    }  # random layout, details do not matter here
+    if layout is None:
+        layout = {
+            i: j for i, j in enumerate(data_qubit_locs)
+        }  # random layout, details do not matter here
 
     initial_state = random_initial_state(n_qubits)
 

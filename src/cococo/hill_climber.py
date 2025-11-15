@@ -145,12 +145,15 @@ class HillClimbing:
             msg = "`layout['factory_positions']` must be of type list[tuple[int,int]] but this is not even a list."
             raise TypeError(msg)
 
+        factory_times = {el: self.t for el in factory_positions_temp}
+        clean_layout = {k: v for k, v in layout.items() if k != "factory_positions"}
+
         router: BasicRouter
 
         router = BasicRouter(
             self.g,
             self.data_qubit_locs,
-            self.possible_factory_positions,
+            factory_positions_temp,
             self.valid_path,
             self.t,
             metric=self.metric,
@@ -158,6 +161,9 @@ class HillClimbing:
         )
 
         layers = router.split_layer_terminal_pairs(terminal_pairs)
+        terminal_pairs_t = []
+        for layer in layers:
+            terminal_pairs_t += layer
 
         cost: int
         if self.metric == "crossing":
@@ -182,8 +188,9 @@ class HillClimbing:
             vdp_layers, _ = router.find_total_vdp_layers_dyn(
                 layers,
                 logical_pos=self.data_qubit_locs,
-                factory_times={},
-                layout=layout,
+                factory_times=factory_times,
+                layout=clean_layout,
+                testing=False,  # testing does not work with adapted layouts
             )
             cost = len(vdp_layers)
         return cost

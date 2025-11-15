@@ -532,7 +532,7 @@ class BasicRouter:
         ), f"The dynamic routing has a bug. There are {len(terminal_pairs)} to be routed, but the final vdp_layers only has {len(keys)} paths."
 
         if testing:
-            if tst.check_order_dyn_gates_st(terminal_pairs, vdp_layers):
+            if tst.check_order_dyn_gates_st(terminal_pairs, vdp_layers, layout=layout):
                 logger.info("stim test succeeded for standard routing (:")
             else:
                 logger.info("stim test failed - THERE IS A PROBLEM!")
