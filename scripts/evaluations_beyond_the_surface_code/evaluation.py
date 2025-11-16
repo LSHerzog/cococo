@@ -1,10 +1,3 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
-# All rights reserved.
-#
-# SPDX-License-Identifier: MIT
-#
-# Licensed under the MIT License
-
 """Evaluate the routing for different Layouts."""
 
 from __future__ import annotations
@@ -20,30 +13,39 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
 
-#!ADAPT THIS TO THE NEW CLASS STRUCTURE
+import cococo.circuit_construction as circuit_construction
+import cococo.hill_climber as hill_climber
+import cococo.layouts as layouts
+import cococo.utils_routing as utils
+
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
-"""
+
 def collect_data_space_time(
-    instances: list[dict[str, Any]], hc_params: dict[str, Any], reps: int, path: str, both_metric: bool = False
+    instances: list[dict[str, Any]],
+    hc_params: dict[str, Any],
+    reps: int,
+    path: str,
+    both_metric: bool = False,
 ) -> list[dict[str, Any]]:
-    #Collects the data for a run which will compare space and time cost.
-#
-#    Args:
-#        instances (list[dict]): A list of dicts which collects parameters of instances to be run.
-#            Each dict must contain these keys: q, t, ratio, min_depth,... also "layout_name" must be added to track the shape, since "layout_type" will be "custom".
-#            for generating random circuits.
-#        hc_params (dict): contains a value for metric, max_restarts, max_iterations, routing, optimize_factories, free_rows, parallel
-#        reps (int): Number of random circuits per instance (each optimized with hc and routed)
-#        path (str): where to store the res_lst (also intermediate save points)
-#        both_metric (bool): if False, just what metric is defined in hc_params. if True, both the crossing and the routing metric are used
-#            this is necessary as running collect_data_space_time two separate times would use different sampled circuits for both runs.#
-#
-#    Returns:
-#        list[dict]: results dictionary for each instance (same order as instances.)
-#    
+    """
+    Collects the data for a run which will compare space and time cost.
+
+    Args:
+        instances (list[dict]): A list of dicts which collects parameters of instances to be run.
+            Each dict must contain these keys: q, t, ratio, min_depth,... also "layout_name" must be added to track the shape, since "layout_type" will be "custom".
+            for generating random circuits.
+        hc_params (dict): contains a value for metric, max_restarts, max_iterations, routing, optimize_factories, free_rows, parallel
+        reps (int): Number of random circuits per instance (each optimized with hc and routed)
+        path (str): where to store the res_lst (also intermediate save points)
+        both_metric (bool): if False, just what metric is defined in hc_params. if True, both the crossing and the routing metric are used
+            this is necessary as running collect_data_space_time two separate times would use different sampled circuits for both runs.#
+
+    Returns:
+        list[dict]: results dictionary for each instance (same order as instances.)
+    """
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     instances_set = {
         "q",
@@ -53,63 +55,43 @@ def collect_data_space_time(
         "ratio",
         "custom_layout",
         "factory_locs",
-        "layout_type",
         "layout_name",
-    }
-    instances_set_ext = {
-        "q",
-        "t",
-        "min_depth",
-        "tgate",
-        "ratio",
-        "custom_layout",
-        "factory_locs",
-        "layout_type",
-        "layout_name",
-        "circuit_type",
-    }  # additional circuit_type
-    instances_set_ext2 = {
-        "q",
-        "t",
-        "min_depth",
-        "tgate",
-        "ratio",
-        "custom_layout",
-        "factory_locs",
-        "layout_type",
-        "layout_name",
-        "graphtype",
         "circuit_type",
     }
     for instance in instances:
-        assert (
-            set(instance.keys()) == instances_set
-            or set(instance.keys()) == instances_set_ext
-            or set(instance.keys()) == instances_set_ext2
-        ), "Wrong input for `instances`."
+        assert set(instance.keys()) == instances_set, "Wrong input for `instances`."
     # if no "circuit type" given, choose standard
     for instance in instances:
         if "circuit_type" not in set(instance.keys()):
             instance.update({"circuit_type": "random"})
     hc_par_set = {
-        "metric",
         "max_restarts",
         "max_iterations",
-        "routing",
+        "metric",
+        "use_dag",
+        "valid_path",
         "optimize_factories",
-        "free_rows",
         "parallel",
         "processes",
     }
     assert set(hc_params.keys()) == hc_par_set, "Wrong input for `hc_params`."
-    # ! layout_type for hc must be manual
     res_lst = []
+
+    # extract values from hcparams
+    max_restarts = hc_params["max_restarts"]
+    max_iterations = hc_params["max_iterations"]
+    metric = hc_params["metric"]
+    use_dag = hc_params["use_dag"]
+    valid_path = hc_params["valid_path"]
+    optimize_factories = hc_params["optimize_factories"]
+    parallel = hc_params["parallel"]
+    processes = hc_params["processes"]
 
     if both_metric:
         # both metric can only be done if hc_params has "crossing in it"
-        assert hc_params["metric"] == "crossing", (
-            "For both_metric == True you need to choose crossing in hc_params, to ensure that we have in the end both crossing and routing metric"
-        )
+        assert (
+            hc_params["metric"] == "crossing"
+        ), "For both_metric == True you need to choose crossing in hc_params, to ensure that we have in the end both crossing and routing metric"
         res_lst_routing = []
 
     # sample circuits (should be the same for those instances for which q, min_depth, tgate, ratio) coincide
@@ -117,21 +99,34 @@ def collect_data_space_time(
     circuits = []
     for _ in range(reps):
         if instances[0]["circuit_type"] == "random":
-            circuit = co.generate_random_circuit(
-                instances[0]["q"], instances[0]["min_depth"], instances[0]["tgate"], instances[0]["ratio"]
+            circuit = circuit_construction.generate_random_circuit(
+                instances[0]["q"],
+                instances[0]["min_depth"],
+                instances[0]["tgate"],
+                instances[0]["ratio"],
             )
         elif instances[0]["circuit_type"] == "parallelmax":
-            assert instances[0]["tgate"] is False, "For Maximally parallel circuit type, we can only do CNOTs."
-            assert instances[0]["ratio"] == 1.0, (
-                "For Maximally parallel circuit type, the ratio must be 1.0 as we can do only CNOTS"
+            assert (
+                instances[0]["tgate"] is False
+            ), "For Maximally parallel circuit type, we can only do CNOTs."
+            assert (
+                instances[0]["ratio"] == 1.0
+            ), "For Maximally parallel circuit type, the ratio must be 1.0 as we can do only CNOTS"
+            circuit = circuit_construction.generate_max_parallel_circuit(
+                q=instances[0]["q"], min_depth=instances[0]["min_depth"]
             )
-            circuit = co.generate_max_parallel_circuit(q=instances[0]["q"], min_depth=instances[0]["min_depth"])
         elif instances[0]["circuit_type"] == "sequential":
-            assert instances[0]["tgate"] is False, "For seq. circuit type, we can only do CNOTs."
-            assert instances[0]["ratio"] == 1.0, "For seq. circuit type, the ratio must be 1.0 as we can do only CNOTS"
+            assert (
+                instances[0]["tgate"] is False
+            ), "For seq. circuit type, we can only do CNOTs."
+            assert (
+                instances[0]["ratio"] == 1.0
+            ), "For seq. circuit type, the ratio must be 1.0 as we can do only CNOTS"
             layer_size = 2
-            circuit = co.generate_min_parallel_circuit(
-                q=instances[0]["q"], min_depth=instances[0]["min_depth"], layer_size=layer_size
+            circuit = circuit_construction.generate_min_parallel_circuit(
+                q=instances[0]["q"],
+                min_depth=instances[0]["min_depth"],
+                layer_size=layer_size,
             )
         else:
             msg = "No other circuit types than random, sequential, parallelmax"
@@ -157,23 +152,34 @@ def collect_data_space_time(
                 circuits = []
                 for _ in range(reps):
                     if instance["circuit_type"] == "random":
-                        circuit = co.generate_random_circuit(
-                            instance["q"], instance["min_depth"], instance["tgate"], instance["ratio"]
+                        circuit = circuit_construction.generate_random_circuit(
+                            instance["q"],
+                            instance["min_depth"],
+                            instance["tgate"],
+                            instance["ratio"],
                         )
                     elif instance["circuit_type"] == "parallelmax":
-                        assert instance["tgate"] is False, "For Maximally parallel circuit type, we can only do CNOTs."
-                        assert instance["ratio"] == 1.0, (
-                            "For Maximally parallel circuit type, the ratio must be 1.0 as we can do only CNOTS"
+                        assert (
+                            instance["tgate"] is False
+                        ), "For Maximally parallel circuit type, we can only do CNOTs."
+                        assert (
+                            instance["ratio"] == 1.0
+                        ), "For Maximally parallel circuit type, the ratio must be 1.0 as we can do only CNOTS"
+                        circuit = circuit_construction.generate_max_parallel_circuit(
+                            instance["q"], instance["min_depth"]
                         )
-                        circuit = co.generate_max_parallel_circuit(instance["q"], instance["min_depth"])
                     elif instance["circuit_type"] == "sequential":
-                        assert instance["tgate"] is False, "For seq. circuit type, we can only do CNOTs."
-                        assert instance["ratio"] == 1.0, (
-                            "For seq. circuit type, the ratio must be 1.0 as we can do only CNOTS"
-                        )
+                        assert (
+                            instance["tgate"] is False
+                        ), "For seq. circuit type, we can only do CNOTs."
+                        assert (
+                            instance["ratio"] == 1.0
+                        ), "For seq. circuit type, the ratio must be 1.0 as we can do only CNOTS"
                         layer_size = 2
-                        circuit = co.generate_min_parallel_circuit(
-                            q=instance["q"], min_depth=instance["min_depth"], layer_size=layer_size
+                        circuit = circuit_construction.generate_min_parallel_circuit(
+                            q=instance["q"],
+                            min_depth=instance["min_depth"],
+                            layer_size=layer_size,
                         )
                     else:
                         msg = "No other circuit types than random, sequential, parallelmax"
@@ -186,32 +192,19 @@ def collect_data_space_time(
         logger.info(f"=======Instance {l}=======")
         time = []
         time2 = []
+
+        # extract variables from instances
+        q = instance["q"]
         t = instance["t"]
-        # min_depth = instance["min_depth"]
-        # tgate = instance["tgate"]
-        # ratio = instance["ratio"]
+        min_depth = instance["min_depth"]
+        tgate = instance["tgate"]
+        ratio = instance["ratio"]
         custom_layout = instance["custom_layout"]
+        g = custom_layout[1]
+        space = len(list(g.nodes()))
+        data_qubit_locs = custom_layout[0]
         factory_locs = instance["factory_locs"]
-        layout_type = instance["layout_type"]
-
-        metric = hc_params["metric"]
-        max_restarts = hc_params["max_restarts"]
-        max_iterations = hc_params["max_iterations"]
-        routing = hc_params["routing"]
-        optimize_factories = hc_params["optimize_factories"]
-        free_rows = hc_params["free_rows"]
-        parallel = hc_params["parallel"]
-        processes = hc_params["processes"]
-        if custom_layout is not None:
-            g = custom_layout[1]
-
-        if layout_type == "custom":
-            m = 5
-            n = 5
-            space = len(list(g.nodes()))
-            # random assignments for initialization, will be overwritten by custom_layout
-        else:
-            raise NotImplementedError
+        layout_name = instance["layout_name"]
 
         init_layout_lst = []
         final_layout_lst = []
@@ -224,77 +217,97 @@ def collect_data_space_time(
         num_init_lst2 = []
 
         for circuit in circuits:
-            # generate random circ
-            # circuit = co.generate_random_circuit(q, min_depth, tgate, ratio)
-
             # do hill climbing
-            hc = co.HillClimbing(
+            hc = hill_climber.HillClimbing(
                 max_restarts,
                 max_iterations,
                 circuit,
-                layout_type,
-                m,
-                n,
                 metric,
-                factory_locs,
-                len(factory_locs),  # do not include different factory locations in opt
-                free_rows,
                 t,
-                optimize_factories,
                 custom_layout,
-                routing,
+                use_dag,
+                valid_path,
+                factory_locs,
+                num_factories=len(factory_locs),
+                optimize_factories=optimize_factories,
             )
             # hard coded for now
             prefix = "./results"
-            suffix = "test_250218"
-            _, _, best_rep, score_history = hc.run(prefix, suffix, parallel, processes)
+            suffix = "test_251116"
+            best_solution, _, best_rep, score_history = hc.run(
+                prefix, suffix, parallel, processes
+            )
 
             # do the initial routing
             input_layout = score_history[best_rep]["layout_init"]
+            input_layout_cleaned = {
+                key: val
+                for key, val in input_layout.items()
+                if key != "factory_positions"
+            }
             init_layout_lst.append(input_layout)
             factory_positions = input_layout["factory_positions"]
-            terminal_pairs = co.translate_layout_circuit(circuit, input_layout)
-            router = co.ShortestFirstRouterTGatesDyn(
-                m=hc.m, n=hc.n, terminal_pairs=terminal_pairs, factory_positions=factory_positions, t=t
+            terminal_pairs = layouts.translate_layout_circuit(circuit, input_layout)
+            router = utils.BasicRouter(
+                g, data_qubit_locs, factory_positions, valid_path, t, metric, use_dag
             )
-            if custom_layout is not None:
-                router.G = g
             # update routing graph
-            vdp_layers_initial_dyn = router.find_total_vdp_layers_dyn()
+            layers = router.split_layer_terminal_pairs(terminal_pairs)
+            vdp_layers_initial_dyn, _ = router.find_total_vdp_layers_dyn(
+                layers,
+                data_qubit_locs,
+                router.factory_times,
+                input_layout_cleaned,
+                testing=True,
+            )
             num_initial_dyn = len(vdp_layers_initial_dyn)
             num_init_lst.append(num_initial_dyn)
 
             # do the optimized routing
             input_layout = score_history[best_rep]["layout_final"]
+            input_layout_cleaned = {
+                key: val
+                for key, val in input_layout.items()
+                if key != "factory_positions"
+            }
             final_layout_lst.append(input_layout)
             factory_positions = input_layout["factory_positions"]
-            terminal_pairs = co.translate_layout_circuit(circuit, input_layout)
-            router = co.ShortestFirstRouterTGatesDyn(
-                m=hc.m, n=hc.n, terminal_pairs=terminal_pairs, factory_positions=factory_positions, t=t
+            terminal_pairs = layouts.translate_layout_circuit(circuit, input_layout)
+            router = utils.BasicRouter(
+                g, data_qubit_locs, factory_positions, valid_path, t, metric, use_dag
             )
-            if custom_layout is not None:
-                router.G = g
             # update routing graph
-            vdp_layers_final_dyn = router.find_total_vdp_layers_dyn()
+            layers = router.split_layer_terminal_pairs(terminal_pairs)
+            vdp_layers_final_dyn, _ = router.find_total_vdp_layers_dyn(
+                layers,
+                data_qubit_locs,
+                router.factory_times,
+                input_layout_cleaned,
+                testing=True,
+            )
             num_final_dyn = len(vdp_layers_final_dyn)
             num_final_lst.append(num_final_dyn)
 
             # add time
             time.append(num_final_dyn)
         logger.info(f"time = {time}")
-        logger.info({"space": space, "time_mean": np.mean(time), "time_std": np.std(time)})
-        res_lst.append({
-            "space": space,
-            "time_mean": np.mean(time),
-            "time_std": np.std(time),
-            "num_init_lst": num_init_lst,
-            "num_final_lst": num_final_lst,
-            "init_layout_lst": init_layout_lst,
-            "final_layout_lst": final_layout_lst,
-            "instances": instances,
-            "hc_params": hc_params,
-            "circuits": circuits,
-        })
+        logger.info(
+            {"space": space, "time_mean": np.mean(time), "time_std": np.std(time)}
+        )
+        res_lst.append(
+            {
+                "space": space,
+                "time_mean": np.mean(time),
+                "time_std": np.std(time),
+                "num_init_lst": num_init_lst,
+                "num_final_lst": num_final_lst,
+                "init_layout_lst": init_layout_lst,
+                "final_layout_lst": final_layout_lst,
+                "instances": instances,
+                "hc_params": hc_params,
+                "circuits": circuits,
+            }
+        )
         with Path(path).open("wb") as f:
             pickle.dump(res_lst, f)
 
@@ -304,81 +317,115 @@ def collect_data_space_time(
             for circuit in circuits:
                 # generate random circ
                 # circuit = co.generate_random_circuit(q, min_depth, tgate, ratio)
-                metric = "routing"
+                metric = "exact"
                 # do hill climbing
-                hc = co.HillClimbing(
+                hc = hill_climber.HillClimbing(
                     max_restarts,
                     max_iterations,
                     circuit,
-                    layout_type,
-                    m,
-                    n,
                     metric,
-                    factory_locs,
-                    len(factory_locs),  # do not include different factory locations in opt
-                    free_rows,
                     t,
-                    optimize_factories,
                     custom_layout,
-                    routing,
+                    use_dag,
+                    valid_path,
+                    factory_locs,
+                    num_factories=len(factory_locs),
+                    optimize_factories=optimize_factories,
                 )
                 # hard coded for now
                 prefix = "./results"
                 suffix = "test_250218_2"
-                _, _, best_rep, score_history = hc.run(prefix, suffix, parallel, processes)
+                _, _, best_rep, score_history = hc.run(
+                    prefix, suffix, parallel, processes
+                )
 
                 # do the initial routing
                 input_layout = score_history[best_rep]["layout_init"]
+                input_layout_cleaned = {
+                    key: val
+                    for key, val in input_layout.items()
+                    if key != "factory_positions"
+                }
                 init_layout_lst2.append(input_layout)
                 factory_positions = input_layout["factory_positions"]
-                terminal_pairs = co.translate_layout_circuit(circuit, input_layout)
-                router = co.ShortestFirstRouterTGatesDyn(
-                    m=hc.m, n=hc.n, terminal_pairs=terminal_pairs, factory_positions=factory_positions, t=t
+                terminal_pairs = layouts.translate_layout_circuit(circuit, input_layout)
+                router = utils.BasicRouter(
+                    g,
+                    data_qubit_locs,
+                    factory_positions,
+                    valid_path,
+                    t,
+                    metric,
+                    use_dag,
                 )
-                if custom_layout is not None:
-                    router.G = g
                 # update routing graph
-                vdp_layers_initial_dyn = router.find_total_vdp_layers_dyn()
+                layers = router.split_layer_terminal_pairs(terminal_pairs)
+                vdp_layers_initial_dyn, _ = router.find_total_vdp_layers_dyn(
+                    layers,
+                    data_qubit_locs,
+                    router.factory_times,
+                    input_layout_cleaned,
+                    testing=True,
+                )
                 num_initial_dyn = len(vdp_layers_initial_dyn)
                 num_init_lst2.append(num_initial_dyn)
 
                 # do the optimized routing
                 input_layout = score_history[best_rep]["layout_final"]
+                input_layout_cleaned = {
+                    key: val
+                    for key, val in input_layout.items()
+                    if key != "factory_positions"
+                }
                 final_layout_lst2.append(input_layout)
                 factory_positions = input_layout["factory_positions"]
-                terminal_pairs = co.translate_layout_circuit(circuit, input_layout)
-                router = co.ShortestFirstRouterTGatesDyn(
-                    m=hc.m, n=hc.n, terminal_pairs=terminal_pairs, factory_positions=factory_positions, t=t
+                terminal_pairs = layouts.translate_layout_circuit(circuit, input_layout)
+                router = utils.BasicRouter(
+                    g,
+                    data_qubit_locs,
+                    factory_positions,
+                    valid_path,
+                    t,
+                    metric,
+                    use_dag,
                 )
-                if custom_layout is not None:
-                    router.G = g
                 # update routing graph
-                vdp_layers_final_dyn = router.find_total_vdp_layers_dyn()
+                layers = router.split_layer_terminal_pairs(terminal_pairs)
+                vdp_layers_final_dyn, _ = router.find_total_vdp_layers_dyn(
+                    layers,
+                    data_qubit_locs,
+                    router.factory_times,
+                    input_layout_cleaned,
+                    testing=True,
+                )
                 num_final_dyn = len(vdp_layers_final_dyn)
                 num_final_lst2.append(num_final_dyn)
 
                 # add time
                 time2.append(num_final_dyn)
             logger.info(f"time = {time}")
-            logger.info({"space": space, "time_mean": np.mean(time2), "time_std": np.std(time2)})
-            res_lst_routing.append({
-                "space": space,
-                "time_mean": np.mean(time2),
-                "time_std": np.std(time2),
-                "num_init_lst": num_init_lst2,
-                "num_final_lst": num_final_lst2,
-                "init_layout_lst": init_layout_lst2,
-                "final_layout_lst": final_layout_lst2,
-                "instances": instances,
-                "hc_params": hc_params,
-                "circuits": circuits,
-            })
+            logger.info(
+                {"space": space, "time_mean": np.mean(time2), "time_std": np.std(time2)}
+            )
+            res_lst_routing.append(
+                {
+                    "space": space,
+                    "time_mean": np.mean(time2),
+                    "time_std": np.std(time2),
+                    "num_init_lst": num_init_lst2,
+                    "num_final_lst": num_final_lst2,
+                    "init_layout_lst": init_layout_lst2,
+                    "final_layout_lst": final_layout_lst2,
+                    "instances": instances,
+                    "hc_params": hc_params,
+                    "circuits": circuits,
+                }
+            )
             new_path = path + "_metricrouting"
             with Path(new_path).open("wb") as f:
                 pickle.dump(res_lst_routing, f)
 
     return res_lst
-"""
 
 
 def plot_improvement_circuit_types(

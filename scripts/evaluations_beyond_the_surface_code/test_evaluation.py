@@ -1,4 +1,4 @@
-"""Creates results for circuits with 24 qubits. Run this from the src/mqt/qecc/co3/plots directory. This should reproduce data for Fig 11 in 2504.10591, but layouts adapted so maybe slight differences expected."""
+"""Creates results for circuits with 24 qubits. Run this from the src/mqt/qecc/co3/plots directory."""
 
 from __future__ import annotations
 
@@ -8,21 +8,17 @@ from pathlib import Path
 import evaluation as ev
 import cococo.layouts as layouts
 
-path = "./test_results_row"  # add you desired path here
+path = "./test_results"  # add you desired path here
 
 factories_q24_hex = [
-    (8, 0),
-    (-3, 6),
-    (8, 22),
-    (-2, -1),
-    (8, 17),
-    (-1, 24),
-    (7, 24),
-    (-4, 15),
+    (5, -1),
+    (10, 0),
+    (7, 7),
+    (12, 5),
 ]
 
-layout_type = "row"
-m, n = 12, 6
+layout_type = "hex"
+m, n = 2, 2
 
 g, data_qubit_locs, factory_ring = layouts.gen_layout_scalable(
     layout_type, m, n, factories_q24_hex, remove_edges=False
@@ -96,7 +92,7 @@ instances = [
 ]
 
 
-reps = 50
+reps = 2
 both_metric = True  # both metrics heuristic and exact are computed
 
 
