@@ -1045,7 +1045,6 @@ class TeleportationRouter(BasicRouter):
         T_end: float,
         alpha: int,
         k_lookahead: int,
-        cost: str,
         radius: int,
         vdp_dict,
         layout,
@@ -1061,7 +1060,6 @@ class TeleportationRouter(BasicRouter):
             T_end:
             alpha:
             k_lookahead:
-            cost:
             radius:
             vdp_dict:
             layout:
@@ -1082,10 +1080,6 @@ class TeleportationRouter(BasicRouter):
             raise ValueError("T_start must be larger than T_end")
         if alpha >= 1.0 or alpha <= 0:
             raise ValueError("alpha must be between 0 and 1")
-        if cost not in {"crossing", "exact"}:
-            raise NotImplementedError(
-                "Other metrics than the crossing metric not implemented yet"
-            )
 
         steiner_dct = init_steiner_dct.copy()
         if self.metric == "crossing":
@@ -1524,7 +1518,6 @@ class TeleportationRouter(BasicRouter):
         T_start,
         T_end,
         alpha,
-        cost,
         radius,
         k_lookahead,
         steiner_init_type,
@@ -1696,7 +1689,6 @@ class TeleportationRouter(BasicRouter):
                         T_end,
                         alpha,
                         k_lookahead,
-                        cost=cost,
                         radius=radius,
                         vdp_dict=schedule_temp["vdp_dict"],
                         layout=layout,
@@ -1723,7 +1715,6 @@ class TeleportationRouter(BasicRouter):
                     T_end,
                     alpha,
                     k_lookahead,
-                    cost=cost,
                     radius=radius,
                     vdp_dict=schedule_temp["vdp_dict"],
                     layout=layout,

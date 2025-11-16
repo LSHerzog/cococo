@@ -178,7 +178,7 @@ class HillClimbing:
                     router.count_crossings_per_layer(layers, t_crossings=False)
                 )
             else:
-                cost = np.sum(router.count_crossings_per_layer())
+                cost = np.sum(router.count_crossings_per_layer(layers))
         elif self.metric == "distance":
             distances = router.measure_terminal_pair_distances()
             cost = np.sum(distances)
