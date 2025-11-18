@@ -696,6 +696,7 @@ class TeleportationRouter(BasicRouter):
         t: int,
         metric: str,
         use_dag: bool,
+        seed: int,
     ):
         """Compilation routine that exploits CNOT + teleportation steps based on BasicRouter.
 
@@ -709,6 +710,8 @@ class TeleportationRouter(BasicRouter):
             use_dag (bool, optional): Determins whether DAG structure from qiskit is used or naive sequential layering. It is recommended to use `True`.
         """
         super().__init__(g, logical_pos, factory_pos, valid_path, t, metric, use_dag)
+        self.seed = seed
+        random.seed(seed)
 
     def initialize_steiner(
         self, vdp_dict, steiner_init_type: str, layers=None, k_lookahead=None
